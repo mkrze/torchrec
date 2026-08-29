@@ -552,14 +552,14 @@ class BaseEmbeddingSharder(ModuleSharder[M]):
                 ShardingType.GRID_SHARD.value,
             ]
 
-        # XPU: TABLE_WISE, ROW_WISE, and DATA_PARALLEL.
-        # COLUMN_WISE / TABLE_COLUMN_WISE / GRID_SHARD not yet validated.
+        # XPU: DATA_PARALLEL only, and that is forced by the kernel choice below
+        # rather than being an independent decision. compute_kernels() returns
+        # DENSE for XPU, and the planner rejects DENSE with any other sharding
+        # type (validate_compute_kernels in planner/planners.py). Widening this
+        # list without also enabling FUSED on XPU just moves the failure into
+        # the planner.
         if compute_device_type in {"xpu"}:
-            return [
-                ShardingType.DATA_PARALLEL.value,
-                ShardingType.TABLE_WISE.value,
-                ShardingType.ROW_WISE.value,
-            ]
+            return [ShardingType.DATA_PARALLEL.value]
 
         types = [
             ShardingType.DATA_PARALLEL.value,

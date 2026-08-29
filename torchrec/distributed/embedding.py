@@ -1856,13 +1856,9 @@ class EmbeddingCollectionSharder(BaseEmbeddingSharder[EmbeddingCollection]):
         }
 
     def sharding_types(self, compute_device_type: str) -> List[str]:
-        # XPU: TABLE_WISE, ROW_WISE, and DATA_PARALLEL.
+        # XPU: DATA_PARALLEL only; see BaseEmbeddingSharder.sharding_types.
         if compute_device_type in {"xpu"}:
-            return [
-                ShardingType.DATA_PARALLEL.value,
-                ShardingType.TABLE_WISE.value,
-                ShardingType.ROW_WISE.value,
-            ]
+            return [ShardingType.DATA_PARALLEL.value]
         types = [
             ShardingType.DATA_PARALLEL.value,
             ShardingType.TABLE_WISE.value,
