@@ -217,6 +217,8 @@ class ComputeDevice(Enum):
     CPU = "cpu"
     # MTIA compute device
     MTIA = "mtia"
+    # Intel XPU compute device
+    XPU = "xpu"
 
 
 @unique
@@ -1386,6 +1388,7 @@ def compute_storage_usage(
             "cuda": ParameterStorage.HBM,
             "cpu": ParameterStorage.DDR,
             "mtia": ParameterStorage.DDR,
+            "xpu": ParameterStorage.HBM,
         }
     elif storage_usage_type == StorageUsageType.BASE:
         if compute_kernel in {"fused_uvm", "fused_uvm_caching"}:
@@ -1394,12 +1397,14 @@ def compute_storage_usage(
             "cuda": ParameterStorage.HBM,
             "cpu": ParameterStorage.DDR,
             "mtia": ParameterStorage.HBM,
+            "xpu": ParameterStorage.HBM,
         }
     else:
         storage_map = {
             "cuda": ParameterStorage.HBM,
             "cpu": ParameterStorage.DDR,
             "mtia": ParameterStorage.HBM,
+            "xpu": ParameterStorage.HBM,
         }
     return {
         storage_map.get(compute_device_type, ParameterStorage.HBM).value: tensor_bytes

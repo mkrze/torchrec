@@ -192,6 +192,7 @@ class DefaultDataParallelWrapper(DataParallelWrapper):
                 **self._ddp_kwargs,
             ),
         )
+
         if self._allreduce_comm_precision == "fp16":
             # pyre-fixme[29]: `Union[Module, Tensor]` is not a function.
             dmp._dmp_wrapped_module.register_comm_hook(
@@ -1138,6 +1139,12 @@ class DMPCollection(DistributedModelParallel):
         rs_awaitable_hook_module: Optional[str] = None,
         use_sharded_relay: bool = False,
     ) -> None:
+        # NOTE: XPU is intentionally excluded here. DMPCollection implements 2D
+        # (hierarchical node-group) parallelism, which has not been validated on
+        # XPU; the single/multi-XPU flat-parallelism path (plain
+        # DistributedModelParallel) is the only XPU configuration exercised so
+        # far. Add "xpu" here only after 2D parallelism has been tested on XPU
+        # hardware.
         assert (
             device.type == "cuda" or device.type == "mtia"
         ), "DMPCollection only supports CUDA or MTIA"

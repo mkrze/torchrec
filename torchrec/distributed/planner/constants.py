@@ -7,8 +7,10 @@
 
 # pyre-strict
 
-from typing import Optional
+import logging
+from typing import Dict, Optional
 
+import torch
 from torchrec.distributed.embedding_types import EmbeddingComputeKernel
 
 MAX_SIZE: int = (1 << 63) - 1
@@ -49,6 +51,72 @@ HUNDRED_GB = 100 * 1024**3  # 107,374,182,400
 
 # Default perf estimator name - use this constant when creating estimators
 DEFAULT_PERF_ESTIMATOR: str = "default_estimator"
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Device-generic HBM bandwidth lookup (bytes/ms).
+# Maps device name substrings to measured/theoretical HBM bandwidth.
+# Extend this dict when adding support for new GPU families.
+#
+# Values are PER TORCH DEVICE, i.e. per stack, not per card. The planner builds
+# a Topology of world_size devices and applies this figure to each one, so a
+# whole-card number would overstate bandwidth on multi-stack parts. A Max 1550
+# under the default FLAT device hierarchy enumerates as two torch devices of one
+# stack each, so it takes the same per-stack figure as the single-stack 1100.
+# ---------------------------------------------------------------------------
+_XPU_HBM_MEM_BW: Dict[str, float] = {
+    # Intel Data Center GPU Max 1100: 1 stack, 48 GB HBM2e, ~614 GB/s
+    "Max 1100": 614 * 1024 * 1024 * 1024 / 1000,
+    # Intel Data Center GPU Max 1550: 2 stacks, 64 GB and ~614 GB/s each
+    "Max 1550": 614 * 1024 * 1024 * 1024 / 1000,
+}
+
+# Default XPU HBM bandwidth when device name is not recognized.
+_XPU_HBM_MEM_BW_DEFAULT: float = 614 * 1024 * 1024 * 1024 / 1000  # bytes/ms
+
+
+def detect_hbm_mem_bw(
+    compute_device: str,
+    device_index: int = 0,
+) -> float:
+    """Detect HBM memory bandwidth (bytes/ms) for the given device.
+
+    For XPU devices, looks up bandwidth by device name.
+    For CUDA devices, returns the default HBM_MEM_BW constant.
+    Falls back to HBM_MEM_BW for unknown device types.
+    """
+    if compute_device == "xpu" and torch.xpu.is_available():
+        props = torch.xpu.get_device_properties(device_index)
+        device_name = props.name
+        for key, bw in _XPU_HBM_MEM_BW.items():
+            if key in device_name:
+                logger.info(
+                    f"XPU device '{device_name}' matched bandwidth profile "
+                    f"'{key}': {bw * 1000 / (1024**3):.0f} GB/s"
+                )
+                return bw
+        logger.warning(
+            f"XPU device '{device_name}' not in bandwidth table, "
+            f"using default {_XPU_HBM_MEM_BW_DEFAULT * 1000 / (1024**3):.0f} GB/s"
+        )
+        return _XPU_HBM_MEM_BW_DEFAULT
+    return HBM_MEM_BW
+
+
+def detect_hbm_cap(
+    compute_device: str,
+    device_index: int = 0,
+) -> int:
+    """Detect device HBM capacity in bytes.
+
+    Supports CUDA and XPU devices.  Returns 0 for CPU.
+    """
+    if compute_device == "xpu" and torch.xpu.is_available():
+        return torch.xpu.get_device_properties(device_index).total_memory
+    elif compute_device == "cuda" and torch.cuda.is_available():
+        return torch.cuda.get_device_properties(device_index).total_mem
+    return 0
 
 
 def kernel_bw_lookup(
@@ -119,11 +187,13 @@ def kernel_bw_lookup(
         ("tpu", EmbeddingComputeKernel.DENSE.value): 0.5 * hbm_mem_bw,
         ("tpu", EmbeddingComputeKernel.FUSED.value): 1 * hbm_mem_bw,
         ("tpu", EmbeddingComputeKernel.QUANT.value): 1 * hbm_mem_bw,
+        ("xpu", EmbeddingComputeKernel.DENSE.value): 0.5 * hbm_mem_bw,
+        ("xpu", EmbeddingComputeKernel.FUSED.value): 1 * hbm_mem_bw,
     }
 
     if (
         prefetch_pipeline
-        and compute_device == "cuda"
+        and compute_device in ("cuda", "xpu")
         and compute_kernel == EmbeddingComputeKernel.FUSED_UVM_CACHING.value
     ):
         return lookup.get(("cuda", EmbeddingComputeKernel.FUSED.value))

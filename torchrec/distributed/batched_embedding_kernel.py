@@ -2620,6 +2620,10 @@ class BatchedFusedEmbedding(BaseBatchedEmbedding[torch.Tensor], FusedOptimizerMo
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
+            # NOTE: no XPU branch here -- fbgemm_gpu's own ComputeDevice enum
+            # (imported above, not torchrec's) has no XPU member. FUSED/TBE on
+            # XPU is unreachable anyway since compute_kernels() only allows
+            # DENSE for XPU (see embedding_types.py).
             elif device is not None and device.type == "mtia":
                 compute_devices.append(ComputeDevice.MTIA)
                 # Set EmbeddingLocation.HOST to make embedding op in FBGEMM choose CPU path.
@@ -2968,7 +2972,7 @@ class BatchedDenseEmbedding(BaseBatchedEmbedding[torch.Tensor]):
         use_cpu: bool = (
             device is None
             or device.type == "cpu"
-            or (not (torch.cuda.is_available() or torch.mtia.is_available()))
+            or (not (torch.cuda.is_available() or torch.mtia.is_available() or torch.xpu.is_available()))
         )
         self._emb_module: DenseTableBatchedEmbeddingBagsCodegen = (
             DenseTableBatchedEmbeddingBagsCodegen(
@@ -3821,6 +3825,10 @@ class BatchedFusedEmbeddingBag(
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
+            # NOTE: no XPU branch here -- fbgemm_gpu's own ComputeDevice enum
+            # (imported above, not torchrec's) has no XPU member. FUSED/TBE on
+            # XPU is unreachable anyway since compute_kernels() only allows
+            # DENSE for XPU (see embedding_types.py).
             elif device is not None and device.type == "mtia":
                 compute_devices.append(ComputeDevice.MTIA)
                 # Set EmbeddingLocation.HOST to make embedding op in FBGEMM choose CPU path.
@@ -4754,7 +4762,7 @@ class BatchedDenseEmbeddingBag(BaseBatchedEmbeddingBag[torch.Tensor]):
         use_cpu: bool = (
             device is None
             or device.type == "cpu"
-            or (not (torch.cuda.is_available() or torch.mtia.is_available()))
+            or (not (torch.cuda.is_available() or torch.mtia.is_available() or torch.xpu.is_available()))
         )
         self._emb_module: DenseTableBatchedEmbeddingBagsCodegen = (
             DenseTableBatchedEmbeddingBagsCodegen(

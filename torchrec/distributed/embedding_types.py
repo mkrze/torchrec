@@ -552,6 +552,15 @@ class BaseEmbeddingSharder(ModuleSharder[M]):
                 ShardingType.GRID_SHARD.value,
             ]
 
+        # XPU: TABLE_WISE, ROW_WISE, and DATA_PARALLEL.
+        # COLUMN_WISE / TABLE_COLUMN_WISE / GRID_SHARD not yet validated.
+        if compute_device_type in {"xpu"}:
+            return [
+                ShardingType.DATA_PARALLEL.value,
+                ShardingType.TABLE_WISE.value,
+                ShardingType.ROW_WISE.value,
+            ]
+
         types = [
             ShardingType.DATA_PARALLEL.value,
             ShardingType.TABLE_WISE.value,
@@ -573,6 +582,12 @@ class BaseEmbeddingSharder(ModuleSharder[M]):
         sharding_type: str,
         compute_device_type: str,
     ) -> List[str]:
+        # XPU: only DENSE kernel validated so far. FUSED/TBE ops exist in the
+        # fbgemm-xpu (torchlib-xpu) package but the end-to-end training path
+        # has not been tested on XPU hardware; revisit once validated.
+        if compute_device_type in {"xpu"}:
+            return [EmbeddingComputeKernel.DENSE.value]
+
         ret: List[str] = []
         if sharding_type != ShardingType.DATA_PARALLEL.value:
             ret += [
