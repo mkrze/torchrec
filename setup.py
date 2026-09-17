@@ -63,6 +63,15 @@ def main(argv: List[str]) -> None:
         reqs = f.read()
         install_requires = reqs.strip().split("\n")
 
+    fbgemm_cpu = os.environ.get("TORCHREC_USE_FBGEMM_CPU", "0")
+    if fbgemm_cpu not in ("0", "1"):
+        raise ValueError("TORCHREC_USE_FBGEMM_CPU must be 0 or 1")
+    if fbgemm_cpu == "1":
+        install_requires = [
+            "fbgemm-gpu-cpu" if requirement == "fbgemm-gpu" else requirement
+            for requirement in install_requires
+        ]
+
     version, sha = _get_version()
     _export_version(version, sha)
 
