@@ -1021,6 +1021,7 @@ class Topology:
         assert compute_device in [
             "cpu",
             "cuda",
+            "xpu",
             "mtia",
             "tpu",
         ], f"unsupported compute device {compute_device}"
@@ -1033,7 +1034,7 @@ class Topology:
         self._world_size = world_size
 
         hbm_per_device = [0] * world_size
-        if self._compute_device in ["cuda", "mtia", "tpu"]:
+        if self._compute_device in ["cuda", "xpu", "mtia", "tpu"]:
             hbm_per_device = [hbm_cap if hbm_cap is not None else HBM_CAP] * world_size
         ddr_cap_per_rank = [ddr_cap if ddr_cap is not None else DDR_CAP] * world_size
         ssd_cap_per_rank = [ssd_cap if ssd_cap is not None else SSD_CAP] * world_size

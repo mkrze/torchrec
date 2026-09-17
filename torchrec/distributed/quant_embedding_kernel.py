@@ -543,7 +543,7 @@ class QuantBatchedEmbedding(
         is_virtual_table = False
         embedding_cache_mode = False
         for table in config.embedding_tables:
-            if device is not None and device.type == "cuda":
+            if device is not None and device.type in {"cuda", "xpu"}:
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
@@ -561,8 +561,7 @@ class QuantBatchedEmbedding(
         self._runtime_device: torch.device = _get_runtime_device(
             device, config, shard_index
         )
-        # 16 for CUDA, 1 for others like CPU and MTIA.
-        self._tbe_row_alignment: int = 16 if self._runtime_device.type == "cuda" else 1
+        self._tbe_row_alignment: int = 16 if self._runtime_device.type in {"cuda", "xpu"} else 1
         embedding_clazz = (
             KVEmbeddingInference
             if is_virtual_table
