@@ -1024,6 +1024,7 @@ class Topology:
             "cuda",
             "mtia",
             "tpu",
+            "xpu",
         ], f"unsupported compute device {compute_device}"
         if pod_size and pod_size > world_size:
             raise ValueError(
@@ -1034,7 +1035,7 @@ class Topology:
         self._world_size = world_size
 
         hbm_per_device = [0] * world_size
-        if self._compute_device in ["cuda", "mtia", "tpu"]:
+        if self._compute_device in ["cuda", "mtia", "tpu", "xpu"]:
             hbm_per_device = [hbm_cap if hbm_cap is not None else HBM_CAP] * world_size
         ddr_cap_per_rank = [ddr_cap if ddr_cap is not None else DDR_CAP] * world_size
         ssd_cap_per_rank = [ssd_cap if ssd_cap is not None else SSD_CAP] * world_size
