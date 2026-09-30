@@ -1741,12 +1741,6 @@ class SeqEmbeddingsAllToOne(nn.Module):
         assert (
             len(tensors) == self._world_size
         ), f"length of input tensor {len(tensors)} must match with world size {self._world_size}"
-        if (
-            self._world_size == 1
-            and self._device.type == "xpu"
-            and tensors[0].device == self._device
-        ):
-            return tensors
         return torch.ops.fbgemm.all_to_one_device(
             tensors,
             self._device,

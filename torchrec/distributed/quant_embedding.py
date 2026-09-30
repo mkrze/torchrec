@@ -215,11 +215,6 @@ def create_infer_embedding_sharding(
         get_device_from_sharding_infos(sharding_infos)
     )
 
-    if storage_device_type_from_sharding_infos == "xpu" and (
-        sharding_type != ShardingType.TABLE_WISE.value or env.world_size != 1
-    ):
-        raise ValueError("Experimental XPU quantized sharding requires table_wise and world_size=1")
-
     if storage_device_type_from_sharding_infos in ["cuda", "mtia", "xpu"]:
         if sharding_type == ShardingType.TABLE_WISE.value:
             assert isinstance(
@@ -1083,11 +1078,6 @@ class QuantEmbeddingCollectionSharder(
     """
     This implementation uses non-fused EmbeddingCollection
     """
-
-    def sharding_types(self, compute_device_type: str) -> List[str]:
-        if compute_device_type == "xpu":
-            return [ShardingType.TABLE_WISE.value]
-        return super().sharding_types(compute_device_type)
 
     def shard(
         self,

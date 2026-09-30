@@ -1,5 +1,58 @@
 # XPU inference packaging and recovery
 
+## M1: local two-tile no-bag QUANT TW/RW/CW
+
+Branch: `xpu/inference-r1-nobag-sharding`, based on `5795b987`. Scope is one
+process on one PVC with two logical tiles (`xpu:0`, `xpu:1`),
+`EmbeddingCollection` without pooling, INT4/INT8, DEVICE storage, bounds v1,
+D=512 and row alignment 16. No process group, XCCL, pooled lookup, compile,
+cache/UVM or pruning.
+
+Runtime changes relative to `5795b987`:
+- `create_infer_embedding_sharding` no longer rejects XPU RW/CW or
+  `world_size>1`; other sharding types still raise.
+- `QuantEmbeddingCollectionSharder` uses the base TW/RW/CW list for XPU.
+- `SeqEmbeddingsAllToOne` drops the single-XPU identity shortcut and always
+  calls `fbgemm::all_to_one_device`. This requires an `fbgemm_xpu` wheel that
+  registers that operator for XPU (torchlib-xpu `c4c1c015` or later).
+
+`QuantSequenceXpuTwoTileTest` plans, shards and runs TW, RW and CW with two
+tables (64/48 rows, one shared by two features), and checks for each bitwidth:
+- planner placement on both tiles (TW one table per tile, RW rows 32/32 and
+  24/24, CW columns 256/256);
+- parity with the CPU non-sharded reference for valid, empty-shard, all-empty
+  and 12k-index inputs, output values on `xpu:0`, FP32, `[num_indices, 512]`;
+- dispatch audit: every `fbgemm::` call has only XPU tensors, lookups and
+  bounds run on both tiles, output routing uses `all_to_one_device` into
+  `xpu:0`, RW bucketizes on `xpu:0`, and per-tile local indices match;
+- bounds WARNING corrections (RW compared with CPU RW sharding, since RW
+  applies bounds per shard) and FATAL errors;
+- packed round trip: plain-tensor checkpoint of the sharded
+  `0.embeddings.*` state (uint8 packed rows, FP16 scale/bias, shard metadata),
+  loaded with `weights_only=True` into a corrupted fresh model; raw TBE
+  buffers including padding match byte-for-byte, and load peak stays within
+  twice the checkpoint tensor bytes per tile.
+
+Observed contract details:
+- TW `lengths()` of features served by `xpu:1` stay on `xpu:1`; values are
+  routed to `xpu:0`. CUDA has the same behavior.
+- RW output reconstruction performs two explicit device-to-host length reads
+  per forward. The lookup operator keeps its known internal host reads.
+- With registered TBEs (`register_tbes=True`), the sharded state dict also
+  contains `*.tbes.N.*` runtime buffers whose names repeat across layouts.
+  Load only `*.embeddings.*` keys from a checkpoint of a different layout:
+  `strict=False` on a full non-sharded state dict silently overwrites
+  `tbes.0.rows_per_table`/`D_offsets` of RW/CW shards.
+
+Run on a host with both tiles visible:
+
+```bash
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+export TORCHREC_XPU_TESTS=1 OMP_NUM_THREADS=4
+export TORCHREC_XPU_AUDIT_DIR=/new/audit-dir  # optional operator records
+python -m pytest torchrec/distributed/tests/test_quant_sequence_xpu.py -v
+```
+
 ## New experiment: single-XPU table-wise QUANT
 
 Branch: `xpu/quant-inference-sharding-experiment`, based on the validated
