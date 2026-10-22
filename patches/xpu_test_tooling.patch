@@ -18,13 +18,14 @@ drop the commit that adds this file; if the PR should carry the tests, take
 them from here.
 
 diff --git a/setup.py b/setup.py
-index 7708075f..3f846e2c 100644
+index 7708075f..a9f3b482 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -63,6 +63,15 @@ def main(argv: List[str]) -> None:
+@@ -63,6 +63,16 @@ def main(argv: List[str]) -> None:
          reqs = f.read()
          install_requires = reqs.strip().split("\n")
  
++    # Temporary (XPU test framework): build against fbgemm-gpu-cpu on XPU hosts.
 +    fbgemm_cpu = os.environ.get("TORCHREC_USE_FBGEMM_CPU", "0")
 +    if fbgemm_cpu not in ("0", "1"):
 +        raise ValueError("TORCHREC_USE_FBGEMM_CPU must be 0 or 1")
@@ -39,10 +40,10 @@ index 7708075f..3f846e2c 100644
  
 diff --git a/torchrec/distributed/tests/test_quant_sequence_xpu.py b/torchrec/distributed/tests/test_quant_sequence_xpu.py
 new file mode 100644
-index 00000000..86ac6c4d
+index 00000000..3b5c0546
 --- /dev/null
 +++ b/torchrec/distributed/tests/test_quant_sequence_xpu.py
-@@ -0,0 +1,381 @@
+@@ -0,0 +1,383 @@
 +#!/usr/bin/env python3
 +# Copyright (c) Meta Platforms, Inc. and affiliates.
 +# All rights reserved.
@@ -51,6 +52,8 @@ index 00000000..86ac6c4d
 +# LICENSE file in the root directory of this source tree.
 +
 +# pyre-strict
++# Temporary (XPU test framework): XPU tests of the QUANT no-bag sharding change,
++# kept in patches/xpu_test_tooling.patch until the PR decides on its tests.
 +
 +"""Sharded QuantEmbeddingCollection (sequence, no-bag) on Intel XPU devices.
 +
