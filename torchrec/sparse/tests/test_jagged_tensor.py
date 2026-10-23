@@ -26,8 +26,11 @@ from torchrec.sparse.jagged_tensor import (
     jt_is_equal,
     KeyedJaggedTensor,
 )
+from torchrec.test_utils import gpu_device_count, gpu_device_type
 
 torch.fx.wrap("len")
+
+GPU_TYPE: str = gpu_device_type()
 
 
 class TestJaggedTensor(unittest.TestCase):
@@ -466,11 +469,11 @@ class TestJaggedTensor(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_from_dense_device(self) -> None:
-        device = torch.device("cuda", index=0)
+        device = torch.device(GPU_TYPE, index=0)
         values = [
             torch.tensor([1.0], device=device),
             torch.tensor([7.0, 8.0], device=device),
@@ -866,7 +869,7 @@ class TestJaggedTensor(unittest.TestCase):
         torch.testing.assert_close(j.weights(), j2.weights(), rtol=0, atol=0)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_record_stream(self) -> None:
@@ -874,8 +877,8 @@ class TestJaggedTensor(unittest.TestCase):
             offsets=torch.tensor([0, 2, 2, 3]),
             values=torch.tensor([0.5, 1.0, 1.5]),
             weights=torch.tensor([5.0, 10.0, 15.0]),
-        ).to(torch.device("cuda"))
-        j.record_stream(torch.cuda.current_stream())
+        ).to(torch.device(GPU_TYPE))
+        j.record_stream(getattr(torch, GPU_TYPE).current_stream())
 
     def test_string_basic(self) -> None:
         values = torch.Tensor([1.0])
@@ -1404,7 +1407,7 @@ class TestJaggedTensorTracing(unittest.TestCase):
         self.assertIsNone(empty_jt.weights_or_none())
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_empty_like_with_device(self) -> None:
@@ -1420,23 +1423,23 @@ class TestJaggedTensorTracing(unittest.TestCase):
         )
 
         # Execute: Create an empty_like JaggedTensor on CUDA device (cross-device)
-        empty_jt = JaggedTensor.empty_like(jt, device=torch.device("cuda"))
+        empty_jt = JaggedTensor.empty_like(jt, device=torch.device(GPU_TYPE))
 
         # Assert: Verify the empty JT preserves structure and is on the correct device
-        self.assertEqual(empty_jt.device().type, "cuda")
+        self.assertEqual(empty_jt.device().type, GPU_TYPE)
         self.assertEqual(empty_jt.values().dtype, jt.values().dtype)
         self.assertEqual(empty_jt.weights().dtype, jt.weights().dtype)
         # Assert: Verify tensors are allocated on CUDA
-        self.assertTrue(empty_jt.values().is_cuda)
-        self.assertTrue(empty_jt.lengths().is_cuda)
-        self.assertTrue(empty_jt.weights().is_cuda)
+        self.assertTrue(empty_jt.values().device.type == GPU_TYPE)
+        self.assertTrue(empty_jt.lengths().device.type == GPU_TYPE)
+        self.assertTrue(empty_jt.weights().device.type == GPU_TYPE)
         # Assert: Verify tensor sizes match the original
         self.assertEqual(empty_jt.values().size(), jt.values().size())
         self.assertEqual(empty_jt.weights().size(), jt.weights().size())
         self.assertEqual(empty_jt.lengths().size(), jt.lengths().size())
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_basic(self) -> None:
@@ -1451,9 +1454,9 @@ class TestJaggedTensorTracing(unittest.TestCase):
             weights=source_weights,
         )
 
-        dest_values = torch.zeros(4, device=torch.device("cuda"))
-        dest_weights = torch.zeros(4, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(4, device=torch.device(GPU_TYPE))
+        dest_weights = torch.zeros(4, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_jt = JaggedTensor(
             values=dest_values,
@@ -1477,12 +1480,12 @@ class TestJaggedTensorTracing(unittest.TestCase):
         # Verify it returns the same object (in-place operation)
         self.assertIs(result_jt, dest_jt)
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_jt.values().is_cuda)
-        self.assertTrue(result_jt.weights().is_cuda)
-        self.assertTrue(result_jt.lengths().is_cuda)
+        self.assertTrue(result_jt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_jt.weights().device.type == GPU_TYPE)
+        self.assertTrue(result_jt.lengths().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_without_weights(self) -> None:
@@ -1495,8 +1498,8 @@ class TestJaggedTensorTracing(unittest.TestCase):
             lengths=source_lengths,
         )
 
-        dest_values = torch.zeros(3, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(3, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_jt = JaggedTensor(
             values=dest_values,
@@ -1515,11 +1518,11 @@ class TestJaggedTensorTracing(unittest.TestCase):
         )
         self.assertIsNone(result_jt.weights_or_none())
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_jt.values().is_cuda)
-        self.assertTrue(result_jt.lengths().is_cuda)
+        self.assertTrue(result_jt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_jt.lengths().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_with_offsets(self) -> None:
@@ -1532,8 +1535,8 @@ class TestJaggedTensorTracing(unittest.TestCase):
             offsets=source_offsets,
         )
 
-        dest_values = torch.zeros(5, device=torch.device("cuda"))
-        dest_offsets = torch.zeros(3, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(5, device=torch.device(GPU_TYPE))
+        dest_offsets = torch.zeros(3, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_jt = JaggedTensor(
             values=dest_values,
@@ -1551,11 +1554,11 @@ class TestJaggedTensorTracing(unittest.TestCase):
             result_jt.offsets().cpu(), source_offsets, rtol=0, atol=0
         )
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_jt.values().is_cuda)
-        self.assertTrue(result_jt.offsets().is_cuda)
+        self.assertTrue(result_jt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_jt.offsets().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_non_blocking(self) -> None:
@@ -1568,8 +1571,8 @@ class TestJaggedTensorTracing(unittest.TestCase):
             lengths=source_lengths,
         )
 
-        dest_values = torch.zeros(3, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(1, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(3, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(1, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_jt = JaggedTensor(
             values=dest_values,
@@ -1580,7 +1583,7 @@ class TestJaggedTensorTracing(unittest.TestCase):
         result_jt = dest_jt.copy_(source_jt, non_blocking=True)
 
         # Synchronize to ensure the non-blocking copy completes before checking
-        torch.cuda.synchronize()
+        getattr(torch, GPU_TYPE).synchronize()
 
         # Assert: Verify the copy succeeded
         torch.testing.assert_close(
@@ -1590,8 +1593,8 @@ class TestJaggedTensorTracing(unittest.TestCase):
             result_jt.lengths().cpu(), source_lengths, rtol=0, atol=0
         )
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_jt.values().is_cuda)
-        self.assertTrue(result_jt.lengths().is_cuda)
+        self.assertTrue(result_jt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_jt.lengths().device.type == GPU_TYPE)
 
     def test_cuda_tolist_cpu_tensor(self) -> None:
         tensor = torch.tensor([3, 5, 7, 2])
