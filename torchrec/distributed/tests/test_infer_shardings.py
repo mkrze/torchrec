@@ -83,8 +83,11 @@ from torchrec.modules.mc_modules import (
     ManagedCollisionCollection,
     MCHManagedCollisionModule,
 )
+from torchrec.test_utils import gpu_device_count, gpu_device_type
 
 torch.fx.wrap("len")
+
+GPU_TYPE: str = gpu_device_type()
 
 
 class TimeGapPoolingCollectionModule(FeatureProcessorsCollection):
@@ -184,12 +187,12 @@ class InferShardingsTest(unittest.TestCase):
         self.assertTrue(any(key.endswith("table_1.weight_qbias") for key in state_keys))
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_tw(self, weight_dtype: torch.dtype, device_type: str) -> None:
@@ -251,12 +254,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8]),
-        device_type=st.sampled_from(["cuda"]),
+        device_type=st.sampled_from([GPU_TYPE]),
     )
     @settings(max_examples=4, deadline=None)
     def test_tw_ebc_full_rank_weighted_ebc_with_empty_rank(
@@ -326,12 +329,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_rw(self, weight_dtype: torch.dtype, device_type: str) -> None:
@@ -395,12 +398,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_rw_with_virtual_table_eviction(
@@ -484,13 +487,13 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         test_permute=st.booleans(),
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_cw(
@@ -596,12 +599,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8]),
-        device_type=st.sampled_from(["cuda"]),
+        device_type=st.sampled_from([GPU_TYPE]),
     )
     @settings(max_examples=4, deadline=None)
     def test_uneven_cw(self, weight_dtype: torch.dtype, device_type: str) -> None:
@@ -720,14 +723,14 @@ class InferShardingsTest(unittest.TestCase):
                     )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         emb_dim=st.sampled_from([192, 128]),
         test_permute=st.booleans(),
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_cw_with_smaller_emb_dim(
@@ -811,12 +814,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_cw_multiple_tables_with_permute(
@@ -923,12 +926,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 3,
+        gpu_device_count() <= 3,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_cw_irregular_shard_placement(
@@ -1041,14 +1044,14 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         device_type_weight_dtype=st.sampled_from(
             [
-                ("cuda", torch.qint8),
-                ("cuda", torch.quint4x2),
+                (GPU_TYPE, torch.qint8),
+                (GPU_TYPE, torch.quint4x2),
                 # ("cpu", torch.qint8), column sharding is currently not supported in CPU inference sharding
                 # ("cpu", torch.quint4x2),
             ]
@@ -1166,12 +1169,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_tw_sequence(self, weight_dtype: torch.dtype, device_type: str) -> None:
@@ -1280,14 +1283,14 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         device_type_weight_dtype=st.sampled_from(
             [
-                ("cuda", torch.qint8),
-                ("cuda", torch.quint4x2),
+                (GPU_TYPE, torch.qint8),
+                (GPU_TYPE, torch.quint4x2),
                 ("cpu", torch.qint8),
                 ("cpu", torch.quint4x2),
             ]
@@ -1399,12 +1402,12 @@ class InferShardingsTest(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 3,
+        gpu_device_count() <= 3,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device=st.sampled_from(["cuda", "cpu"]),
+        device=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_rw_sequence_uneven(self, weight_dtype: torch.dtype, device: str) -> None:
@@ -1413,7 +1416,7 @@ class InferShardingsTest(unittest.TestCase):
         world_size = 4
         local_size = 4
         batch_size = 4
-        local_device = torch.device("cuda:0" if device == "cuda" else device)
+        local_device = torch.device(f"{device}:0" if device == GPU_TYPE else device)
 
         topology: Topology = Topology(world_size=world_size, compute_device=device)
         mi = TestModelInfo(
@@ -1601,12 +1604,12 @@ class InferShardingsTest(unittest.TestCase):
             self.assertIn(device, path_device[1])
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_mix_tw_rw_sequence(
@@ -1714,12 +1717,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_mix_tw_rw_sequence_missing_feature_on_rank(
@@ -1826,7 +1829,7 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 2,
+        gpu_device_count() <= 2,
         "Not enough GPUs available",
     )
     @given(
@@ -1837,7 +1840,7 @@ class InferShardingsTest(unittest.TestCase):
                 (500, 256, 128, 128),
             ]
         ),
-        device=st.sampled_from(["cuda", "cpu"]),
+        device=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_rw_uneven_sharding(
@@ -1852,7 +1855,7 @@ class InferShardingsTest(unittest.TestCase):
         local_size = 3
         world_size = 3
         batch_size = 4
-        local_device = torch.device("cuda:0" if device == "cuda" else device)
+        local_device = torch.device(f"{device}:0" if device == GPU_TYPE else device)
         mi = create_test_model(
             num_embeddings,
             emb_dim,
@@ -1928,12 +1931,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 3,
+        gpu_device_count() <= 3,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device=st.sampled_from(["cuda", "cpu"]),
+        device=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_rw_uneven_sharding_mutiple_table(
@@ -1946,7 +1949,7 @@ class InferShardingsTest(unittest.TestCase):
         local_size = 4
         world_size = 4
         batch_size = 1
-        local_device = torch.device("cuda:0" if device == "cuda" else device)
+        local_device = torch.device(f"{device}:0" if device == GPU_TYPE else device)
         mi = create_test_model(
             num_embeddings,
             emb_dim,
@@ -2085,12 +2088,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 3,
+        gpu_device_count() <= 3,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8, torch.quint4x2]),
-        device=st.sampled_from(["cuda", "cpu"]),
+        device=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=4, deadline=None)
     def test_mix_sharding_mutiple_table(
@@ -2103,7 +2106,7 @@ class InferShardingsTest(unittest.TestCase):
         local_size = 4
         world_size = 4
         batch_size = 1
-        local_device = torch.device("cuda:0" if device == "cuda" else device)
+        local_device = torch.device(f"{device}:0" if device == GPU_TYPE else device)
         mi = create_test_model(
             num_embeddings,
             emb_dim,
@@ -2164,12 +2167,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8]),
-        device_type=st.sampled_from(["cuda", "cpu"]),
+        device_type=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=1, deadline=None)
     def test_sharded_quant_fp_ebc_tw(
@@ -2343,12 +2346,12 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output, gm_script_output)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
         weight_dtype=st.sampled_from([torch.qint8]),
-        device_type=st.sampled_from(["cpu", "cuda"]),
+        device_type=st.sampled_from(["cpu", GPU_TYPE]),
     )
     @settings(max_examples=2, deadline=None)
     def test_sharded_quant_mc_ec_rw(
@@ -2504,11 +2507,11 @@ class InferShardingsTest(unittest.TestCase):
         assert_close(sharded_output[0], gm_script_output[0])
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
-        compute_device=st.sampled_from(["cuda", "cpu"]),
+        compute_device=st.sampled_from([GPU_TYPE, "cpu"]),
     )
     @settings(max_examples=2, deadline=None)
     def test_sharded_quant_fp_ebc_tw_meta(self, compute_device: str) -> None:

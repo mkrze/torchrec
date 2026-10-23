@@ -41,15 +41,16 @@ from torchrec.modules.embedding_modules import (
     EmbeddingBagCollection,
     EmbeddingCollection,
 )
+from torchrec.test_utils import gpu_device_count, gpu_device_type
 
 
 class UtilsTest(unittest.TestCase):
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     def test_get_tbe_specs_from_sqebc(self) -> None:
-        device = torch.device("cuda:0")
+        device = torch.device(f"{gpu_device_type()}:0")
 
         num_features = 3
 
@@ -123,11 +124,11 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(specs, expected_specs)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     def test_get_tbe_specs_from_sqec(self) -> None:
-        device = torch.device("cuda:0")
+        device = torch.device(f"{gpu_device_type()}:0")
 
         num_features = 3
 
@@ -201,11 +202,11 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(specs, expected_specs)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     def test_get_all_torchrec_modules_for_single_module(self) -> None:
-        device = torch.device("cuda:0")
+        device = torch.device(f"{gpu_device_type()}:0")
 
         num_features = 2
 
@@ -281,11 +282,11 @@ class UtilsTest(unittest.TestCase):
         self.assertDictEqual
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     def test_get_all_torchrec_modules_for_test_SparseNN_model(self) -> None:
-        local_device = torch.device("cuda:0")
+        local_device = torch.device(f"{gpu_device_type()}:0")
         model_info = TestModelInfo(
             sparse_device=local_device,
             dense_device=local_device,
