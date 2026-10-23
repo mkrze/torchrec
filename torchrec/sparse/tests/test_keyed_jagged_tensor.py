@@ -21,7 +21,9 @@ from torchrec.sparse.jagged_tensor import (
     KeyedJaggedTensor,
     kjt_is_equal,
 )
-from torchrec.test_utils import skip_if_asan_class
+from torchrec.test_utils import gpu_device_count, gpu_device_type, skip_if_asan_class
+
+GPU_TYPE: str = gpu_device_type()
 
 torch.fx.wrap("len")
 
@@ -1035,7 +1037,7 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_record_stream(self) -> None:
@@ -1044,8 +1046,8 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             values=torch.arange(8),
             weights=torch.arange(8 * 10),
             keys=["index_0", "index_1"],
-        ).to(torch.device("cuda"))
-        j.record_stream(torch.cuda.current_stream())
+        ).to(torch.device(GPU_TYPE))
+        j.record_stream(getattr(torch, GPU_TYPE).current_stream())
 
     def test_equality(self) -> None:
         values = torch.Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
@@ -1279,7 +1281,7 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         self.assertIsNone(empty_kjt._stride_per_key_per_rank)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_empty_like_with_device(self) -> None:
@@ -1297,24 +1299,24 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         )
 
         # Execute: Create an empty_like KJT on CUDA device (cross-device)
-        empty_kjt = KeyedJaggedTensor.empty_like(kjt, device=torch.device("cuda"))
+        empty_kjt = KeyedJaggedTensor.empty_like(kjt, device=torch.device(GPU_TYPE))
 
         # Assert: Verify the empty KJT preserves structure and is on the correct device
         self.assertEqual(empty_kjt.keys(), kjt.keys())
-        self.assertEqual(empty_kjt.device().type, "cuda")
+        self.assertEqual(empty_kjt.device().type, GPU_TYPE)
         self.assertEqual(empty_kjt.values().dtype, kjt.values().dtype)
         self.assertEqual(empty_kjt.weights().dtype, kjt.weights().dtype)
         # Assert: Verify tensors are allocated on CUDA
-        self.assertTrue(empty_kjt.values().is_cuda)
-        self.assertTrue(empty_kjt.lengths().is_cuda)
-        self.assertTrue(empty_kjt.weights().is_cuda)
+        self.assertTrue(empty_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(empty_kjt.lengths().device.type == GPU_TYPE)
+        self.assertTrue(empty_kjt.weights().device.type == GPU_TYPE)
         # Assert: Verify tensor sizes match the original
         self.assertEqual(empty_kjt.values().size(), kjt.values().size())
         self.assertEqual(empty_kjt.weights().size(), kjt.weights().size())
         self.assertEqual(empty_kjt.lengths().size(), kjt.lengths().size())
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_empty_like_with_device_and_inverse_indices(self) -> None:
@@ -1336,17 +1338,17 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         )
 
         # Execute: Create an empty_like KJT on CUDA device (cross-device)
-        empty_kjt = KeyedJaggedTensor.empty_like(kjt, device=torch.device("cuda"))
+        empty_kjt = KeyedJaggedTensor.empty_like(kjt, device=torch.device(GPU_TYPE))
 
         # Assert: Verify the empty KJT preserves structure and is on the correct device
         self.assertEqual(empty_kjt.keys(), kjt.keys())
-        self.assertEqual(empty_kjt.device().type, "cuda")
+        self.assertEqual(empty_kjt.device().type, GPU_TYPE)
         self.assertEqual(empty_kjt.values().dtype, kjt.values().dtype)
         self.assertEqual(empty_kjt.weights().dtype, kjt.weights().dtype)
         # Assert: Verify tensors are allocated on CUDA
-        self.assertTrue(empty_kjt.values().is_cuda)
-        self.assertTrue(empty_kjt.lengths().is_cuda)
-        self.assertTrue(empty_kjt.weights().is_cuda)
+        self.assertTrue(empty_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(empty_kjt.lengths().device.type == GPU_TYPE)
+        self.assertTrue(empty_kjt.weights().device.type == GPU_TYPE)
         # Assert: Verify tensor sizes match the original
         self.assertEqual(empty_kjt.values().size(), kjt.values().size())
         self.assertEqual(empty_kjt.weights().size(), kjt.weights().size())
@@ -1360,7 +1362,7 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         empty_inverse_indices = empty_kjt.inverse_indices()
         kjt_inverse_indices = kjt.inverse_indices()
         self.assertEqual(empty_inverse_indices[0], kjt_inverse_indices[0])
-        self.assertTrue(empty_inverse_indices[1].is_cuda)
+        self.assertTrue(empty_inverse_indices[1].device.type == GPU_TYPE)
         self.assertEqual(empty_inverse_indices[1].size(), kjt_inverse_indices[1].size())
 
     def test_empty_like_with_stride_per_key_per_rank(self) -> None:
@@ -1398,7 +1400,7 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_basic(self) -> None:
@@ -1415,9 +1417,9 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             weights=source_weights,
         )
 
-        dest_values = torch.zeros(4, device=torch.device("cuda"))
-        dest_weights = torch.zeros(4, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(4, device=torch.device(GPU_TYPE))
+        dest_weights = torch.zeros(4, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_kjt = KeyedJaggedTensor(
             values=dest_values,
@@ -1441,12 +1443,12 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         )
         self.assertIs(result_kjt, dest_kjt)
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_kjt.values().is_cuda)
-        self.assertTrue(result_kjt.weights().is_cuda)
-        self.assertTrue(result_kjt.lengths().is_cuda)
+        self.assertTrue(result_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_kjt.weights().device.type == GPU_TYPE)
+        self.assertTrue(result_kjt.lengths().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_without_weights(self) -> None:
@@ -1461,8 +1463,8 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             lengths=source_lengths,
         )
 
-        dest_values = torch.zeros(3, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(3, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(2, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_kjt = KeyedJaggedTensor(
             values=dest_values,
@@ -1481,11 +1483,11 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             result_kjt.lengths().cpu(), source_lengths, rtol=0, atol=0
         )
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_kjt.values().is_cuda)
-        self.assertTrue(result_kjt.lengths().is_cuda)
+        self.assertTrue(result_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_kjt.lengths().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_with_offsets(self) -> None:
@@ -1500,8 +1502,8 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             offsets=source_offsets,
         )
 
-        dest_values = torch.zeros(5, device=torch.device("cuda"))
-        dest_offsets = torch.zeros(3, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(5, device=torch.device(GPU_TYPE))
+        dest_offsets = torch.zeros(3, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_kjt = KeyedJaggedTensor(
             values=dest_values,
@@ -1519,11 +1521,11 @@ class TestKeyedJaggedTensor(unittest.TestCase):
         torch.testing.assert_close(
             result_kjt.offsets().cpu(), source_offsets, rtol=0, atol=0
         )
-        self.assertTrue(result_kjt.values().is_cuda)
-        self.assertTrue(result_kjt.offsets().is_cuda)
+        self.assertTrue(result_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_kjt.offsets().device.type == GPU_TYPE)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "CUDA is not available",
     )
     def test_copy_non_blocking(self) -> None:
@@ -1538,8 +1540,8 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             lengths=source_lengths,
         )
 
-        dest_values = torch.zeros(3, device=torch.device("cuda"))
-        dest_lengths = torch.zeros(1, dtype=torch.int64, device=torch.device("cuda"))
+        dest_values = torch.zeros(3, device=torch.device(GPU_TYPE))
+        dest_lengths = torch.zeros(1, dtype=torch.int64, device=torch.device(GPU_TYPE))
 
         dest_kjt = KeyedJaggedTensor(
             values=dest_values,
@@ -1558,8 +1560,8 @@ class TestKeyedJaggedTensor(unittest.TestCase):
             result_kjt.lengths().cpu(), source_lengths, rtol=0, atol=0
         )
         # Assert: Verify tensors are on CUDA
-        self.assertTrue(result_kjt.values().is_cuda)
-        self.assertTrue(result_kjt.lengths().is_cuda)
+        self.assertTrue(result_kjt.values().device.type == GPU_TYPE)
+        self.assertTrue(result_kjt.lengths().device.type == GPU_TYPE)
 
     def test_clear_storage(self) -> None:
         kjt = KeyedJaggedTensor(
@@ -1919,10 +1921,12 @@ class TestComputeKJTToJTDict(unittest.TestCase):
 class TestKeyedJaggedTensorGPU(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.device = torch.cuda.current_device()
+        self.device = torch.device(
+            GPU_TYPE, getattr(torch, GPU_TYPE).current_device()
+        )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_permute(self) -> None:
@@ -1955,7 +1959,7 @@ class TestKeyedJaggedTensorGPU(unittest.TestCase):
         self.assertEqual(permuted_jag_tensor.weights_or_none(), None)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_permute_vb(self) -> None:
@@ -1991,7 +1995,7 @@ class TestKeyedJaggedTensorGPU(unittest.TestCase):
         self.assertEqual(permuted_jag_tensor.weights_or_none(), None)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_permute_vb_duplicate(self) -> None:
@@ -2050,7 +2054,7 @@ class TestKeyedJaggedTensorGPU(unittest.TestCase):
         self.assertEqual(permuted_jag_tensor.weights_or_none(), None)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_permute_duplicates(self) -> None:

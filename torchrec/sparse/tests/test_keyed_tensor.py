@@ -26,7 +26,9 @@ from torchrec.sparse.jagged_tensor import (
     regroup_kts,
 )
 from torchrec.sparse.tests.utils import build_groups, build_kts
-from torchrec.test_utils import skip_if_asan_class
+from torchrec.test_utils import gpu_device_count, gpu_device_type, skip_if_asan_class
+
+GPU_TYPE: str = gpu_device_type()
 
 if sys.version_info < (3, 15) and torch.cuda.is_available():
     from torchrec.sparse.triton_permute_multi_embedding import (
@@ -133,7 +135,7 @@ class TestKeyedTensor(unittest.TestCase):
         )
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         regroup_func=st.sampled_from(
             [
                 KeyedTensor.regroup,
@@ -148,7 +150,7 @@ class TestKeyedTensor(unittest.TestCase):
         self, regroup_func: Callable[..., List[torch.Tensor]], device_str: str
     ) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
 
         kts = build_kts(
@@ -171,7 +173,7 @@ class TestKeyedTensor(unittest.TestCase):
                 torch.testing.assert_close(ref, output)
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         regroup_func=st.sampled_from(
             [
                 KeyedTensor.regroup,
@@ -185,7 +187,7 @@ class TestKeyedTensor(unittest.TestCase):
     def test_regroup_kts_inference(
         self, regroup_func: Callable[..., List[torch.Tensor]], device_str: str
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -277,7 +279,7 @@ class TestKeyedTensor(unittest.TestCase):
         self.assertEqual(kt.size_in_bytes(), expected_size)
 
     @given(
-        device_str=st.sampled_from(["cpu", "cuda"]),
+        device_str=st.sampled_from(["cpu", GPU_TYPE]),
         regroup_func=st.sampled_from(
             [
                 KeyedTensor.regroup,
@@ -291,7 +293,7 @@ class TestKeyedTensor(unittest.TestCase):
     def test_regroup_backward(
         self, regroup_func: Callable[..., List[torch.Tensor]], device_str: str
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -359,7 +361,7 @@ class TestKeyedTensor(unittest.TestCase):
         )
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         regroup_func=st.sampled_from(
             [
                 KeyedTensor.regroup,
@@ -372,7 +374,7 @@ class TestKeyedTensor(unittest.TestCase):
     def test_regroup_scriptable(
         self, regroup_func: Callable[..., List[torch.Tensor]], device_str: str
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -406,7 +408,7 @@ class TestKeyedTensor(unittest.TestCase):
                 torch.testing.assert_close(ref, output)
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         regroup_func=st.sampled_from(
             [
                 KeyedTensor.regroup,
@@ -419,7 +421,7 @@ class TestKeyedTensor(unittest.TestCase):
     def test_regroup_scriptable_inference(
         self, regroup_func: Callable[..., List[torch.Tensor]], device_str: str
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -607,11 +609,11 @@ class TestKeyedTensor(unittest.TestCase):
 
 
 class TestKeyedTensorRegroupOp(unittest.TestCase):
-    @given(device_str=st.sampled_from(["cpu", "meta", "cuda"]))
+    @given(device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]))
     @settings(verbosity=Verbosity.verbose, max_examples=5, deadline=None)
     def test_kt_regroup_arguments(self, device_str: str) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
 
         keys = [["f1", "f2"], ["f3", "f4", "f5"], ["f6"]]
@@ -646,13 +648,13 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
         self.assertEqual(out_lengths, [8, 4, 17, 10])
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         batch_size=st.sampled_from([16, 128, 1024]),
     )
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_multi_permute_forward(self, device_str: str, batch_size: int) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
 
         keys = [["f1", "f2"], ["f3", "f4", "f5"], ["f6"]]
@@ -682,7 +684,7 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
                 torch.testing.assert_close(out, ref)
 
     @given(
-        device_str=st.sampled_from(["meta", "cpu", "cuda"]),
+        device_str=st.sampled_from(["meta", "cpu", GPU_TYPE]),
         dtype=st.sampled_from(
             [
                 torch.float,
@@ -695,7 +697,7 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_multi_permute_dtype(self, device_str: str, dtype: torch.dtype) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
 
         batch_size = 4
@@ -731,7 +733,7 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
         zipped_args=st.sampled_from(
             [
                 ("cpu", 32, [[3, 4], [5, 6, 7], [8]]),
-                ("cuda", 128, [[96, 256], [512, 128, 768], [1024]]),
+                (GPU_TYPE, 128, [[96, 256], [512, 128, 768], [1024]]),
             ],
         ),
     )
@@ -741,7 +743,7 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
     ) -> None:
         device_str, batch_size, lengths = zipped_args
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
 
         keys = [["f1", "f2"], ["f3", "f4", "f5"], ["f6"]]
@@ -782,14 +784,14 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
             torch.testing.assert_close(val_grad, ref_grad, rtol=1e-05, atol=1e-08)
 
     @given(
-        device_str=st.sampled_from(["cpu", "cuda"]),
+        device_str=st.sampled_from(["cpu", GPU_TYPE]),
         batch_size=st.sampled_from([16, 1024]),
     )
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_multi_permute_noncontiguous(
         self, device_str: str, batch_size: int
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -835,12 +837,12 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
             torch.testing.assert_close(val_grad, ref_grad, rtol=1e-05, atol=1e-08)
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         batch_size=st.sampled_from([16, 1024]),
     )
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_kt_regroup_arguments_op(self, device_str: str, batch_size: int) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -883,14 +885,14 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
         self.assertEqual(out_lengths, [8, 4, 17, 10])
 
     @given(
-        device_str=st.sampled_from(["cpu", "meta", "cuda"]),
+        device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]),
         batch_size=st.sampled_from([16, 1024]),
     )
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_keyed_tensor_regroup_forward(
         self, device_str: str, batch_size: int
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -929,14 +931,14 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
                 torch.testing.assert_close(out, ref)
 
     @given(
-        device_str=st.sampled_from(["cpu", "cuda"]),
+        device_str=st.sampled_from(["cpu", GPU_TYPE]),
         batch_size=st.sampled_from([16, 1024]),
     )
     @settings(verbosity=Verbosity.verbose, max_examples=10, deadline=None)
     def test_keyed_tensor_regroup_backward(
         self, device_str: str, batch_size: int
     ) -> None:
-        if device_str == "cuda" and not torch.cuda.is_available():
+        if device_str == GPU_TYPE and gpu_device_count() == 0:
             return
         else:
             device = torch.device(device_str)
@@ -986,10 +988,12 @@ class TestKeyedTensorRegroupOp(unittest.TestCase):
 class TestKeyedTensorGPU(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.device = torch.cuda.current_device()
+        self.device = torch.device(
+            GPU_TYPE, getattr(torch, GPU_TYPE).current_device()
+        )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_regroup_backward_skips_and_duplicates(self) -> None:
@@ -1034,7 +1038,7 @@ class TestKeyedTensorGPU(unittest.TestCase):
         torch.allclose(actual_kt_1_grad, expected_kt_1_grad)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 0,
+        gpu_device_count() <= 0,
         "Not enough GPUs, this test requires at least one GPUs",
     )
     def test_regroup_backward(self) -> None:
