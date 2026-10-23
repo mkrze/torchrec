@@ -15,14 +15,17 @@ from hypothesis import assume, given, settings, strategies as st, Verbosity
 from tensordict import TensorDict
 from torchrec.sparse.jagged_tensor import KeyedJaggedTensor
 from torchrec.sparse.tensor_dict import maybe_td_to_kjt
+from torchrec.test_utils import gpu_device_count, gpu_device_type
+
+GPU_TYPE: str = gpu_device_type()
 
 
 class TestTensorDict(unittest.TestCase):
-    @given(device_str=st.sampled_from(["cpu", "meta", "cuda"]))
+    @given(device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]))
     @settings(verbosity=Verbosity.verbose, max_examples=5, deadline=None)
     def test_kjt_input(self, device_str: str) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
         values = torch.tensor([0, 1, 2, 3, 2, 3, 4], device=device)
         kjt = KeyedJaggedTensor.from_offsets_sync(
@@ -33,11 +36,11 @@ class TestTensorDict(unittest.TestCase):
         features = maybe_td_to_kjt(kjt)
         self.assertEqual(features, kjt)
 
-    @given(device_str=st.sampled_from(["cpu", "meta", "cuda"]))
+    @given(device_str=st.sampled_from(["cpu", "meta", GPU_TYPE]))
     @settings(verbosity=Verbosity.verbose, max_examples=5, deadline=None)
     def test_td_kjt(self, device_str: str) -> None:
         # assumption only fails when using cuda but device == 0.
-        assume(device_str != "cuda" or torch.cuda.device_count() > 0)
+        assume(device_str != GPU_TYPE or gpu_device_count() > 0)
         device = torch.device(device_str)
         values = torch.tensor([0, 1, 2, 3, 2, 3, 4], device=device)
         lengths = torch.tensor([2, 0, 1, 1, 1, 2], device=device)
