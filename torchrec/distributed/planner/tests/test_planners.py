@@ -12,8 +12,8 @@ from typing import cast, Dict, List, Optional
 from unittest.mock import patch
 
 import torch
-from torch import nn
-from torchrec import EmbeddingBagCollection, EmbeddingConfig
+from torch import nn, quantization as quant
+from torchrec import EmbeddingBagCollection, EmbeddingCollection, EmbeddingConfig
 from torchrec.distributed.embedding import EmbeddingCollectionSharder
 from torchrec.distributed.embedding_types import EmbeddingComputeKernel
 from torchrec.distributed.embeddingbag import EmbeddingBagCollectionSharder
@@ -57,6 +57,7 @@ from torchrec.distributed.planner.types import (
     Storage,
     Topology,
 )
+from torchrec.distributed.quant_embedding import QuantEmbeddingCollectionSharder
 from torchrec.distributed.sharding_plan import get_default_sharders
 from torchrec.distributed.test_utils.test_model import TestSparseNN
 from torchrec.distributed.types import (
@@ -74,6 +75,9 @@ from torchrec.distributed.types import (
 )
 from torchrec.distributed.utils import none_throws
 from torchrec.modules.embedding_configs import EmbeddingBagConfig
+from torchrec.quant.embedding_modules import (
+    EmbeddingCollection as QuantEmbeddingCollection,
+)
 
 
 class TWvsRWSharder(EmbeddingBagCollectionSharder):
@@ -241,6 +245,52 @@ class TestEmbeddingShardingPlanner(unittest.TestCase):
         sharding_plan = self.planner.plan(module=model, sharders=[])
 
         self.assertEqual(sharding_plan, ShardingPlan({}))
+
+
+class TestQuantEmbeddingCollectionPlannerXpu(unittest.TestCase):
+    def test_quant_ec_shards_placed_on_xpu(self) -> None:
+        tables = [
+            EmbeddingConfig(
+                num_embeddings=100 * (i + 1),
+                embedding_dim=64,
+                name="table_" + str(i),
+                feature_names=["feature_" + str(i)],
+            )
+            for i in range(4)
+        ]
+        model = quant.quantize_dynamic(
+            nn.Sequential(EmbeddingCollection(tables=tables)),
+            qconfig_spec={
+                EmbeddingCollection: quant.QConfig(
+                    activation=quant.PlaceholderObserver,
+                    weight=quant.PlaceholderObserver.with_args(dtype=torch.qint8),
+                )
+            },
+            mapping={EmbeddingCollection: QuantEmbeddingCollection},
+            inplace=False,
+        )
+        planner = EmbeddingShardingPlanner(
+            topology=Topology(world_size=2, compute_device="xpu")
+        )
+
+        # pyrefly: ignore[bad-argument-type, missing-argument]
+        sharding_plan = planner.plan(
+            module=model, sharders=[QuantEmbeddingCollectionSharder()]
+        )
+
+        module_plan = cast(EmbeddingModuleShardingPlan, sharding_plan.plan["0"])
+        self.assertEqual(len(module_plan), len(tables))
+        for parameter_sharding in module_plan.values():
+            self.assertEqual(
+                parameter_sharding.compute_kernel,
+                EmbeddingComputeKernel.QUANT.value,
+            )
+            sharding_spec = cast(
+                EnumerableShardingSpec, parameter_sharding.sharding_spec
+            )
+            for shard in sharding_spec.shards:
+                placement = none_throws(shard.placement)
+                self.assertEqual(str(placement.device()), f"xpu:{placement.rank()}")
 
 
 class TestNoPlanDiagnostic(unittest.TestCase):
