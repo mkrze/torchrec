@@ -34,7 +34,7 @@ from torchrec.quant.embedding_modules import (
     EmbeddingCollection as QuantEmbeddingCollection,
     quant_prep_enable_quant_state_dict_split_scale_bias_for_types,
 )
-from torchrec.test_utils import skip_if_asan_class
+from torchrec.test_utils import gpu_device_count, gpu_device_type, skip_if_asan_class
 
 
 def _quantize(
@@ -154,7 +154,7 @@ class QuantSequenceModelParallelTest(InferenceModelParallelTestBase):
         )
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     @given(
@@ -170,7 +170,7 @@ class QuantSequenceModelParallelTest(InferenceModelParallelTestBase):
     def test_quant_pred_shard(
         self, output_type: torch.dtype, quant_state_dict_split_scale_bias: bool
     ) -> None:
-        device = torch.device("cuda:0")
+        device = torch.device(f"{gpu_device_type()}:0")
 
         # wrap in sequential because _quantize only applies to submodules...
         model = nn.Sequential(EmbeddingCollection(tables=self.tables, device=device))
@@ -207,11 +207,11 @@ class QuantSequenceModelParallelTest(InferenceModelParallelTestBase):
         sharded_quant_model(local_batch.idlist_features)
 
     @unittest.skipIf(
-        torch.cuda.device_count() <= 1,
+        gpu_device_count() <= 1,
         "Not enough GPUs available",
     )
     def test_sharded_quant_kv_zch(self) -> None:
-        device = torch.device("cuda:0")
+        device = torch.device(f"{gpu_device_type()}:0")
         num_features = 4
 
         tables = [
