@@ -516,7 +516,7 @@ class HardwareConfig(TopologyConfigBase):
 
         Args:
             compute_device: optional device hint. The HBM check runs only for
-                HBM-bearing accelerators ("cuda"/"mtia"), where a non-positive
+                HBM-bearing accelerators ("cuda"/"xpu"/"mtia"), where a non-positive
                 HBM (incl. 0) is a detection failure. It is skipped for "cpu"
                 (no HBM device), "meta", None, or any other device, where a
                 0/None HBM is not a failure. (Using an allowlist rather than
@@ -524,12 +524,12 @@ class HardwareConfig(TopologyConfigBase):
         """
         issues: List[str] = []
 
-        # HBM only exists on accelerators that have it (cuda/mtia), so a
+        # HBM only exists on accelerators that have it (cuda/xpu/mtia), so a
         # non-positive value there is a detection failure. Skipped for cpu
         # (no HBM device), meta, None, or any other device.
         if (
             self.hbm_cap_bytes is not None
-            and compute_device in ("cuda", "mtia")
+            and compute_device in ("cuda", "xpu", "mtia")
             and self.hbm_cap_bytes <= 0
         ):
             issues.append(f"hbm_cap_bytes={self.hbm_cap_bytes} is non-positive")
@@ -669,7 +669,7 @@ class KernelConfig(TopologyConfigBase):
     provide device-specific performance multipliers and communication patterns.
 
     Attributes:
-        compute_device: The compute device type ("cuda", "mtia", or "cpu").
+        compute_device: The compute device type ("cuda", "xpu", "mtia", or "cpu").
         bwd_compute_multiplier: Multiplier for backward compute estimation.
             Accounts for the additional compute in backward pass vs forward.
         weighted_feature_bwd_compute_multiplier: Multiplier for weighted feature
@@ -724,7 +724,7 @@ class KernelConfig(TopologyConfigBase):
     def validate(self) -> None:
         """Validate kernel configuration parameters."""
         # Match Topology class validation: compute_device must be valid
-        valid_devices = {"cuda", "mtia", "cpu", "tpu"}
+        valid_devices = {"cuda", "xpu", "mtia", "cpu", "tpu"}
         if self.compute_device not in valid_devices:
             raise ValueError(
                 f"compute_device must be one of {valid_devices}, got '{self.compute_device}'"
@@ -1021,6 +1021,7 @@ class Topology:
         assert compute_device in [
             "cpu",
             "cuda",
+            "xpu",
             "mtia",
             "tpu",
         ], f"unsupported compute device {compute_device}"
@@ -1033,7 +1034,7 @@ class Topology:
         self._world_size = world_size
 
         hbm_per_device = [0] * world_size
-        if self._compute_device in ["cuda", "mtia", "tpu"]:
+        if self._compute_device in ["cuda", "xpu", "mtia", "tpu"]:
             hbm_per_device = [hbm_cap if hbm_cap is not None else HBM_CAP] * world_size
         ddr_cap_per_rank = [ddr_cap if ddr_cap is not None else DDR_CAP] * world_size
         ssd_cap_per_rank = [ssd_cap if ssd_cap is not None else SSD_CAP] * world_size

@@ -148,6 +148,19 @@ def cuda_device_count() -> int:
     return 0
 
 
+def gpu_device_type() -> str:
+    """GPU device type the tests run on: "xpu" when Intel GPUs are present,
+    otherwise "cuda"."""
+    return "xpu" if torch.xpu.is_available() else "cuda"
+
+
+def gpu_device_count() -> int:
+    """Number of GPUs of gpu_device_type(); torch.cuda.device_count() on CUDA."""
+    if gpu_device_type() == "xpu":
+        return torch.xpu.device_count()
+    return torch.cuda.device_count()
+
+
 def init_distributed_single_host(
     rank: int,
     world_size: int,
