@@ -653,7 +653,7 @@ def row_wise(
                     device_type = str(sizes_placement[1])
                     placements.append(placement_helper(device_type, index, i))
 
-                if device_type == "cuda":
+                if device_type in {"cuda", "xpu"}:
                     index += 1
 
         return _get_parameter_sharding(
