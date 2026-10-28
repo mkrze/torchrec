@@ -517,7 +517,7 @@ class HardwareConfig(TopologyConfigBase):
 
         Args:
             compute_device: optional device hint. The HBM check runs only for
-                HBM-bearing accelerators ("cuda"/"mtia"), where a non-positive
+                HBM-bearing accelerators ("cuda"/"mtia"/"xpu"), where a non-positive
                 HBM (incl. 0) is a detection failure. It is skipped for "cpu"
                 (no HBM device), "meta", None, or any other device, where a
                 0/None HBM is not a failure. (Using an allowlist rather than
@@ -525,12 +525,12 @@ class HardwareConfig(TopologyConfigBase):
         """
         issues: List[str] = []
 
-        # HBM only exists on accelerators that have it (cuda/mtia), so a
+        # HBM only exists on accelerators that have it (cuda/mtia/xpu), so a
         # non-positive value there is a detection failure. Skipped for cpu
         # (no HBM device), meta, None, or any other device.
         if (
             self.hbm_cap_bytes is not None
-            and compute_device in ("cuda", "mtia")
+            and compute_device in ("cuda", "mtia", "xpu")
             and self.hbm_cap_bytes <= 0
         ):
             issues.append(f"hbm_cap_bytes={self.hbm_cap_bytes} is non-positive")
@@ -725,7 +725,7 @@ class KernelConfig(TopologyConfigBase):
     def validate(self) -> None:
         """Validate kernel configuration parameters."""
         # Match Topology class validation: compute_device must be valid
-        valid_devices = {"cuda", "mtia", "cpu", "tpu"}
+        valid_devices = {"cuda", "mtia", "cpu", "tpu", "xpu"}
         if self.compute_device not in valid_devices:
             raise ValueError(
                 f"compute_device must be one of {valid_devices}, got '{self.compute_device}'"
