@@ -293,6 +293,129 @@ class TestQuantEmbeddingCollectionPlannerXpu(unittest.TestCase):
                 self.assertEqual(str(placement.device()), f"xpu:{placement.rank()}")
 
 
+class TestTrainingPlannerXpu(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tables = [
+            EmbeddingConfig(
+                num_embeddings=100 * (i + 1),
+                embedding_dim=64,
+                name="table_" + str(i),
+                feature_names=["feature_" + str(i)],
+            )
+            for i in range(4)
+        ]
+        self.bag_tables = [
+            EmbeddingBagConfig(
+                num_embeddings=100 * (i + 1),
+                embedding_dim=64,
+                name="table_" + str(i),
+                feature_names=["feature_" + str(i)],
+            )
+            for i in range(2)
+        ]
+        self.topology = Topology(world_size=2, compute_device="xpu")
+
+    def test_ec_fused_and_dense_on_xpu(self) -> None:
+        sharding_types = [
+            ShardingType.TABLE_WISE.value,
+            ShardingType.ROW_WISE.value,
+            ShardingType.COLUMN_WISE.value,
+            ShardingType.DATA_PARALLEL.value,
+        ]
+        constraints = {
+            table.name: ParameterConstraints(sharding_types=[sharding_type])
+            for table, sharding_type in zip(self.tables, sharding_types)
+        }
+        planner = EmbeddingShardingPlanner(
+            topology=self.topology, constraints=constraints
+        )
+
+        # pyrefly: ignore[bad-argument-type, missing-argument]
+        sharding_plan = planner.plan(
+            module=nn.Sequential(EmbeddingCollection(tables=self.tables)),
+            sharders=[EmbeddingCollectionSharder()],
+        )
+
+        module_plan = cast(EmbeddingModuleShardingPlan, sharding_plan.plan["0"])
+        for table, sharding_type in zip(self.tables, sharding_types):
+            parameter_sharding = module_plan[table.name]
+            self.assertEqual(parameter_sharding.sharding_type, sharding_type)
+            if sharding_type == ShardingType.DATA_PARALLEL.value:
+                self.assertEqual(
+                    parameter_sharding.compute_kernel,
+                    EmbeddingComputeKernel.DENSE.value,
+                )
+                continue
+            self.assertEqual(
+                parameter_sharding.compute_kernel, EmbeddingComputeKernel.FUSED.value
+            )
+            sharding_spec = cast(
+                EnumerableShardingSpec, parameter_sharding.sharding_spec
+            )
+            for shard in sharding_spec.shards:
+                placement = none_throws(shard.placement)
+                self.assertEqual(str(placement.device()), f"xpu:{placement.rank()}")
+
+    def test_fused_shards_charged_to_hbm_on_xpu(self) -> None:
+        enumerator = EmbeddingEnumerator(topology=self.topology, batch_size=BATCH_SIZE)
+
+        sharding_options = enumerator.enumerate(
+            # pyrefly: ignore[bad-argument-type]
+            module=nn.Sequential(EmbeddingCollection(tables=self.tables)),
+            sharders=[EmbeddingCollectionSharder()],
+        )
+
+        fused = [
+            option
+            for option in sharding_options
+            if option.compute_kernel == EmbeddingComputeKernel.FUSED.value
+        ]
+        self.assertTrue(fused)
+        for option in fused:
+            for shard in option.shards:
+                storage = none_throws(shard.storage)
+                self.assertGreater(storage.hbm, 0)
+                self.assertEqual(storage.ddr, 0)
+
+    def test_ebc_fused_row_wise_on_xpu(self) -> None:
+        self.assertIn(
+            ShardingType.ROW_WISE.value,
+            EmbeddingBagCollectionSharder().sharding_types("xpu"),
+        )
+        constraints = {
+            table.name: ParameterConstraints(
+                sharding_types=[ShardingType.ROW_WISE.value]
+            )
+            for table in self.bag_tables
+        }
+        planner = EmbeddingShardingPlanner(
+            topology=self.topology, constraints=constraints
+        )
+
+        # pyrefly: ignore[bad-argument-type, missing-argument]
+        sharding_plan = planner.plan(
+            module=nn.Sequential(EmbeddingBagCollection(tables=self.bag_tables)),
+            sharders=[EmbeddingBagCollectionSharder()],
+        )
+
+        module_plan = cast(EmbeddingModuleShardingPlan, sharding_plan.plan["0"])
+        for table in self.bag_tables:
+            parameter_sharding = module_plan[table.name]
+            self.assertEqual(
+                parameter_sharding.compute_kernel, EmbeddingComputeKernel.FUSED.value
+            )
+            sharding_spec = cast(
+                EnumerableShardingSpec, parameter_sharding.sharding_spec
+            )
+            self.assertEqual(
+                [
+                    str(none_throws(shard.placement).device())
+                    for shard in sharding_spec.shards
+                ],
+                ["xpu:0", "xpu:1"],
+            )
+
+
 class TestNoPlanDiagnostic(unittest.TestCase):
     """The no-plan diagnostic must never fail on a non-percentage reservation.
 

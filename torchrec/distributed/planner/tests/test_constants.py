@@ -33,6 +33,22 @@ class TestKernelBWLookup(unittest.TestCase):
             HBM_MEM_BW,
         )
 
+    def test_dense_and_fused_bw_xpu(self) -> None:
+        for compute_kernel, expected in (
+            (EmbeddingComputeKernel.DENSE.value, 0.5 * HBM_MEM_BW),
+            (EmbeddingComputeKernel.FUSED.value, HBM_MEM_BW),
+        ):
+            self.assertEqual(
+                kernel_bw_lookup(
+                    "xpu",
+                    compute_kernel,
+                    HBM_MEM_BW,
+                    DDR_MEM_BW,
+                    HBM_TO_DDR_MEM_BW,
+                ),
+                expected,
+            )
+
     def test_uvm_caching_bw(self) -> None:
         compute_device: str = "cuda"
         computer_kernel: str = EmbeddingComputeKernel.FUSED_UVM_CACHING.value
