@@ -3369,6 +3369,16 @@ class ShardedBatchedFusedEmbedding(BatchedFusedEmbedding):
             )
 
 
+def _reject_dense_on_xpu(device: Optional[torch.device]) -> None:
+    if device is not None and device.type == "xpu":
+        raise ValueError(
+            "DATA_PARALLEL tables (compute kernel DENSE) are not supported on XPU: "
+            "FBGEMM's DenseTableBatchedEmbeddingBagsCodegen cannot place its "
+            "weights on an XPU device. Use a model-parallel sharding type with "
+            "the FUSED kernel instead."
+        )
+
+
 class BatchedDenseEmbedding(BaseBatchedEmbedding[torch.Tensor]):
     def __init__(
         self,
@@ -3376,6 +3386,7 @@ class BatchedDenseEmbedding(BaseBatchedEmbedding[torch.Tensor]):
         pg: Optional[dist.ProcessGroup] = None,
         device: Optional[torch.device] = None,
     ) -> None:
+        _reject_dense_on_xpu(device)
         super().__init__(config, pg, device)
 
         weights_precision = data_type_to_sparse_type(config.data_type)
@@ -5886,6 +5897,7 @@ class BatchedDenseEmbeddingBag(BaseBatchedEmbeddingBag[torch.Tensor]):
         device: Optional[torch.device] = None,
         sharding_type: Optional[ShardingType] = None,
     ) -> None:
+        _reject_dense_on_xpu(device)
         super().__init__(config, pg, device, sharding_type)
 
         weights_precision = data_type_to_sparse_type(config.data_type)

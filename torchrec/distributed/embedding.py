@@ -1973,6 +1973,10 @@ class EmbeddingCollectionSharder(BaseEmbeddingSharder[EmbeddingCollection]):
             ShardingType.COLUMN_WISE.value,
             ShardingType.ROW_WISE.value,
         ]
+        if compute_device_type == "xpu":
+            # DATA_PARALLEL needs FBGEMM's dense TBE, which cannot place its
+            # weights on an XPU device.
+            types.remove(ShardingType.DATA_PARALLEL.value)
         return types
 
     @property
