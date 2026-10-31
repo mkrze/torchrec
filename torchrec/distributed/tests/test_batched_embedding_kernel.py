@@ -8,6 +8,7 @@
 # pyre-strict
 
 import unittest
+from enum import IntEnum
 from typing import cast, List, Tuple
 from unittest.mock import patch
 
@@ -26,6 +27,10 @@ from torchrec.distributed.batched_embedding_kernel import (
     _gen_named_parameters_by_table_dense,
     _gen_named_parameters_by_table_fused,
     _get_grid_shard_cw_count,
+    BatchedDenseEmbedding,
+    BatchedDenseEmbeddingBag,
+    BatchedFusedEmbedding,
+    BatchedFusedEmbeddingBag,
     EmbeddingFusedOptimizer,
     KeyValueEmbeddingFusedOptimizer,
 )
@@ -318,3 +323,59 @@ class GridShardParameterSliceTest(unittest.TestCase):
             for rows in ([7, 7], [7]):
                 with self.subTest(fused=fused, rows=rows):
                     self._check_slices(rows, fused=fused, row_slicing_enabled=False)
+
+
+def _single_table_config(
+    compute_kernel: EmbeddingComputeKernel, pooling: PoolingType
+) -> GroupedEmbeddingConfig:
+    return GroupedEmbeddingConfig(
+        data_type=DataType.FP32,
+        pooling=pooling,
+        is_weighted=False,
+        has_feature_processor=False,
+        compute_kernel=compute_kernel,
+        embedding_tables=[
+            ShardedEmbeddingTable(
+                name="table_0",
+                num_embeddings=10,
+                embedding_dim=8,
+                feature_names=["feature_0"],
+                local_rows=10,
+                local_cols=8,
+                compute_kernel=compute_kernel,
+            )
+        ],
+    )
+
+
+class XpuKernelDeviceTest(unittest.TestCase):
+    def test_dense_rejected_on_xpu(self) -> None:
+        for kernel, pooling in (
+            (BatchedDenseEmbedding, PoolingType.NONE),
+            (BatchedDenseEmbeddingBag, PoolingType.SUM),
+        ):
+            with self.subTest(kernel=kernel.__name__):
+                with self.assertRaisesRegex(ValueError, "not supported on XPU"):
+                    kernel(
+                        _single_table_config(EmbeddingComputeKernel.DENSE, pooling),
+                        device=torch.device("xpu", 0),
+                    )
+
+    def test_fused_on_xpu_needs_compute_device_xpu(self) -> None:
+        # fbgemm_gpu releases without XPU support have only these members.
+        compute_device_without_xpu = IntEnum(
+            "ComputeDevice", ["CPU", "CUDA", "MTIA"], start=0
+        )
+        for kernel, pooling in (
+            (BatchedFusedEmbedding, PoolingType.NONE),
+            (BatchedFusedEmbeddingBag, PoolingType.SUM),
+        ):
+            with self.subTest(kernel=kernel.__name__), patch(
+                "torchrec.distributed.batched_embedding_kernel.ComputeDevice",
+                compute_device_without_xpu,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "ComputeDevice has XPU"):
+                    kernel(
+                        _single_table_config(EmbeddingComputeKernel.FUSED, pooling),
+                        device=torch.device("xpu", 0),
+                    )

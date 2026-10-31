@@ -18,6 +18,7 @@ from torchrec.distributed.embedding_lookup import (
     BackendType,
     GroupedEmbeddingsLookup,
     GroupedPooledEmbeddingsLookup,
+    InferGroupedEmbeddingsLookup,
 )
 from torchrec.distributed.embedding_types import (
     EmbeddingComputeKernel,
@@ -305,3 +306,25 @@ class FragmentedDTensorStateLoadTest(unittest.TestCase):
             destination_fragments[1],
         )
         torch.testing.assert_close(source_fragments[1][2:], destination_fragments[2])
+
+
+class InferGroupedEmbeddingsLookupDeviceTest(unittest.TestCase):
+    @patch(
+        "torchrec.distributed.embedding_lookup.get_propogate_device",
+        return_value=False,
+    )
+    def test_device_without_propagate_device(self, _: MagicMock) -> None:
+        for device, expected in (
+            (torch.device("xpu", 0), ["xpu:0", "xpu:1"]),
+            (torch.device("cuda", 0), ["cuda:0", "cuda:1"]),
+            (torch.device("meta"), ["meta:0", "meta:1"]),
+        ):
+            with self.subTest(device=str(device)):
+                lookup = InferGroupedEmbeddingsLookup([[], []], 2, device=device)
+                self.assertEqual(
+                    [
+                        str(rank_lookup.device)
+                        for rank_lookup in lookup._embedding_lookups_per_rank
+                    ],
+                    expected,
+                )

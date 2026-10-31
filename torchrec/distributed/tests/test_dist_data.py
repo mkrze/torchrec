@@ -55,6 +55,7 @@ from torchrec.distributed.dist_data import (
     KJTAllToAll,
     KJTAllToAllSplitsAwaitable,
     KJTAllToAllTensorsAwaitable,
+    KJTOneToAll,
     PooledEmbeddingsAllGather,
     PooledEmbeddingsAllToAll,
     PooledEmbeddingsReduceScatter,
@@ -3393,3 +3394,18 @@ class FusedKJTListSplitsAwaitableAnnotationTest(unittest.TestCase):
                 ("exit",),
             ],
         )
+
+
+class KJTOneToAllDeviceTest(unittest.TestCase):
+    @patch("torchrec.distributed.dist_data.get_propogate_device", return_value=False)
+    def test_device_type_without_propagate_device(self, _: MagicMock) -> None:
+        for device, expected in (
+            (torch.device("xpu", 0), "xpu"),
+            (torch.device("cuda", 0), "cuda"),
+            (torch.device("mtia", 0), "mtia"),
+            (torch.device("meta"), "meta"),
+        ):
+            with self.subTest(device=str(device)):
+                self.assertEqual(
+                    KJTOneToAll([1, 1], 2, device=device)._device_type, expected
+                )
