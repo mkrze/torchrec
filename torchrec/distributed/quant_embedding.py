@@ -215,7 +215,7 @@ def create_infer_embedding_sharding(
         get_device_from_sharding_infos(sharding_infos)
     )
 
-    if storage_device_type_from_sharding_infos in ["cuda", "mtia"]:
+    if storage_device_type_from_sharding_infos in ["cuda", "mtia", "xpu"]:
         if sharding_type == ShardingType.TABLE_WISE.value:
             assert isinstance(
                 storage_device_type_from_sharding_infos, str
@@ -628,6 +628,13 @@ class ShardedQuantEmbeddingCollection(
             module, table_name_to_parameter_sharding, fused_params
         )
 
+        # Without a device the shardings fall back to CUDA, so an XPU device is
+        # passed on even when device propagation is off.
+        sharding_device: Optional[torch.device] = (
+            device
+            if get_propogate_device() or (device is not None and device.type == "xpu")
+            else None
+        )
         self._sharding_type_device_group_to_sharding: Dict[
             Tuple[str, Union[str, Tuple[str, ...]]],
             EmbeddingSharding[
@@ -649,7 +656,7 @@ class ShardedQuantEmbeddingCollection(
                         )
                     ]
                 ),
-                device if get_propogate_device() else None,
+                sharding_device,
             )
             for (
                 sharding_type,

@@ -332,7 +332,7 @@ def _pin_and_move(tensor: torch.Tensor, device: torch.device) -> torch.Tensor:
     """
     return (
         tensor.pin_memory().to(device=device, non_blocking=True)
-        if device.type == "cuda" and tensor.device.type == "cpu"
+        if device.type in ["cuda", "xpu"] and tensor.device.type == "cpu"
         else tensor.to(device=device, non_blocking=True)
     )
 
@@ -1973,6 +1973,10 @@ class EmbeddingCollectionSharder(BaseEmbeddingSharder[EmbeddingCollection]):
             ShardingType.COLUMN_WISE.value,
             ShardingType.ROW_WISE.value,
         ]
+        if compute_device_type == "xpu":
+            # DATA_PARALLEL needs FBGEMM's dense TBE, which cannot place its
+            # weights on an XPU device.
+            types.remove(ShardingType.DATA_PARALLEL.value)
         return types
 
     @property

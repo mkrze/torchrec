@@ -121,6 +121,10 @@ def kernel_bw_lookup(
         ("tpu", EmbeddingComputeKernel.FUSED.value): 1 * hbm_mem_bw,
         ("tpu", EmbeddingComputeKernel.QUANT.value): 1 * hbm_mem_bw,
         ("tpu", EmbeddingComputeKernel.UNFUSED_TPU.value): 1 * hbm_mem_bw,
+        # TODO: Calibrate on XPU. These are the multipliers CUDA uses.
+        # XPU
+        ("xpu", EmbeddingComputeKernel.FUSED.value): 1 * hbm_mem_bw,
+        ("xpu", EmbeddingComputeKernel.QUANT.value): 1 * hbm_mem_bw,
     }
 
     if (

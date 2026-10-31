@@ -3007,6 +3007,18 @@ class ZeroCollisionEmbeddingEnrichmentCache(ZeroCollisionKeyValueEmbedding):
         )
 
 
+def _xpu_compute_device() -> ComputeDevice:
+    # ComputeDevice.XPU exists only in fbgemm_gpu releases that support XPU.
+    xpu = getattr(ComputeDevice, "XPU", None)
+    if xpu is None:
+        raise RuntimeError(
+            "Fused embedding tables on XPU need an fbgemm_gpu whose ComputeDevice "
+            "has XPU; the installed fbgemm_gpu has only "
+            f"{', '.join(member.name for member in ComputeDevice)}."
+        )
+    return xpu
+
+
 class BatchedFusedEmbedding(BaseBatchedEmbedding[torch.Tensor], FusedOptimizerModule):
     def __init__(
         self,
@@ -3021,6 +3033,11 @@ class BatchedFusedEmbedding(BaseBatchedEmbedding[torch.Tensor], FusedOptimizerMo
         for table in config.embedding_tables:
             if device is not None and device.type == "cuda":
                 compute_devices.append(ComputeDevice.CUDA)
+                managed.append(
+                    compute_kernel_to_embedding_location(table.compute_kernel)
+                )
+            elif device is not None and device.type == "xpu":
+                compute_devices.append(_xpu_compute_device())
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
@@ -3364,6 +3381,16 @@ class ShardedBatchedFusedEmbedding(BatchedFusedEmbedding):
             )
 
 
+def _reject_dense_on_xpu(device: Optional[torch.device]) -> None:
+    if device is not None and device.type == "xpu":
+        raise ValueError(
+            "DATA_PARALLEL tables (compute kernel DENSE) are not supported on XPU: "
+            "FBGEMM's DenseTableBatchedEmbeddingBagsCodegen cannot place its "
+            "weights on an XPU device. Use a model-parallel sharding type with "
+            "the FUSED kernel instead."
+        )
+
+
 class BatchedDenseEmbedding(BaseBatchedEmbedding[torch.Tensor]):
     def __init__(
         self,
@@ -3371,6 +3398,7 @@ class BatchedDenseEmbedding(BaseBatchedEmbedding[torch.Tensor]):
         pg: Optional[dist.ProcessGroup] = None,
         device: Optional[torch.device] = None,
     ) -> None:
+        _reject_dense_on_xpu(device)
         super().__init__(config, pg, device)
 
         weights_precision = data_type_to_sparse_type(config.data_type)
@@ -4236,6 +4264,11 @@ class BatchedFusedEmbeddingBag(
         for table in config.embedding_tables:
             if device is not None and device.type == "cuda":
                 compute_devices.append(ComputeDevice.CUDA)
+                managed.append(
+                    compute_kernel_to_embedding_location(table.compute_kernel)
+                )
+            elif device is not None and device.type == "xpu":
+                compute_devices.append(_xpu_compute_device())
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
@@ -5876,6 +5909,7 @@ class BatchedDenseEmbeddingBag(BaseBatchedEmbeddingBag[torch.Tensor]):
         device: Optional[torch.device] = None,
         sharding_type: Optional[ShardingType] = None,
     ) -> None:
+        _reject_dense_on_xpu(device)
         super().__init__(config, pg, device, sharding_type)
 
         weights_precision = data_type_to_sparse_type(config.data_type)

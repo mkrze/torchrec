@@ -564,7 +564,9 @@ class BaseEmbeddingSharder(ModuleSharder[M]):
 
     def sharding_types(self, compute_device_type: str) -> List[str]:
 
-        if compute_device_type in {"mtia"}:
+        # No DATA_PARALLEL on XPU: it needs FBGEMM's dense TBE, which cannot
+        # place its weights on an XPU device.
+        if compute_device_type in {"mtia", "xpu"}:
             return [
                 ShardingType.TABLE_WISE.value,
                 ShardingType.COLUMN_WISE.value,
