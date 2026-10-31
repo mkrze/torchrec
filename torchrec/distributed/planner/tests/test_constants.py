@@ -33,6 +33,28 @@ class TestKernelBWLookup(unittest.TestCase):
             HBM_MEM_BW,
         )
 
+    def test_fused_bw_xpu_without_dense(self) -> None:
+        self.assertEqual(
+            kernel_bw_lookup(
+                "xpu",
+                EmbeddingComputeKernel.FUSED.value,
+                HBM_MEM_BW,
+                DDR_MEM_BW,
+                HBM_TO_DDR_MEM_BW,
+            ),
+            HBM_MEM_BW,
+        )
+        # DATA_PARALLEL tables are not offered on xpu, so DENSE has no cost.
+        self.assertIsNone(
+            kernel_bw_lookup(
+                "xpu",
+                EmbeddingComputeKernel.DENSE.value,
+                HBM_MEM_BW,
+                DDR_MEM_BW,
+                HBM_TO_DDR_MEM_BW,
+            )
+        )
+
     def test_uvm_caching_bw(self) -> None:
         compute_device: str = "cuda"
         computer_kernel: str = EmbeddingComputeKernel.FUSED_UVM_CACHING.value
