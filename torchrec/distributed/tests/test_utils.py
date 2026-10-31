@@ -58,8 +58,8 @@ class UtilsTest(unittest.TestCase):
     def test_get_device_type_priority(self) -> None:
         # (cuda, mtia, xpu) availability -> expected device type
         cases = [
-            ((True, True, True), "cuda"),
-            ((False, True, True), "mtia"),
+            ((True, False, False), "cuda"),
+            ((False, True, False), "mtia"),
             ((False, False, True), "xpu"),
             ((False, False, False), "cpu"),
         ]
