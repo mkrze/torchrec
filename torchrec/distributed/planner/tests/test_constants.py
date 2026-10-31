@@ -21,6 +21,18 @@ from torchrec.distributed.planner.constants import (
 
 
 class TestKernelBWLookup(unittest.TestCase):
+    def test_quant_bw_xpu(self) -> None:
+        self.assertEqual(
+            kernel_bw_lookup(
+                "xpu",
+                EmbeddingComputeKernel.QUANT.value,
+                HBM_MEM_BW,
+                DDR_MEM_BW,
+                HBM_TO_DDR_MEM_BW,
+            ),
+            HBM_MEM_BW,
+        )
+
     def test_uvm_caching_bw(self) -> None:
         compute_device: str = "cuda"
         computer_kernel: str = EmbeddingComputeKernel.FUSED_UVM_CACHING.value
