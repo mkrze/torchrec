@@ -1807,7 +1807,9 @@ class InferGroupedEmbeddingsLookup(
             )  # TODO: replace hardcoded cpu with DEFAULT_DEVICE_TYPE in torchrec.distributed.types when torch package issue resolved
         else:
             device_type = (
-                "meta" if device is not None and device.type == "meta" else "cuda"
+                device.type
+                if device is not None and device.type in {"meta", "xpu"}
+                else "cuda"
             )
         for rank in range(world_size):
             grouped_configs_per_rank_elem = grouped_configs_per_rank[rank]
