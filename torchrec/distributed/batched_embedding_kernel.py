@@ -3007,6 +3007,18 @@ class ZeroCollisionEmbeddingEnrichmentCache(ZeroCollisionKeyValueEmbedding):
         )
 
 
+def _xpu_compute_device() -> ComputeDevice:
+    # ComputeDevice.XPU exists only in fbgemm_gpu releases that support XPU.
+    xpu = getattr(ComputeDevice, "XPU", None)
+    if xpu is None:
+        raise RuntimeError(
+            "Fused embedding tables on XPU need an fbgemm_gpu whose ComputeDevice "
+            "has XPU; the installed fbgemm_gpu has only "
+            f"{', '.join(member.name for member in ComputeDevice)}."
+        )
+    return xpu
+
+
 class BatchedFusedEmbedding(BaseBatchedEmbedding[torch.Tensor], FusedOptimizerModule):
     def __init__(
         self,
@@ -3025,7 +3037,7 @@ class BatchedFusedEmbedding(BaseBatchedEmbedding[torch.Tensor], FusedOptimizerMo
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
             elif device is not None and device.type == "xpu":
-                compute_devices.append(ComputeDevice.XPU)
+                compute_devices.append(_xpu_compute_device())
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
@@ -4256,7 +4268,7 @@ class BatchedFusedEmbeddingBag(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
             elif device is not None and device.type == "xpu":
-                compute_devices.append(ComputeDevice.XPU)
+                compute_devices.append(_xpu_compute_device())
                 managed.append(
                     compute_kernel_to_embedding_location(table.compute_kernel)
                 )
