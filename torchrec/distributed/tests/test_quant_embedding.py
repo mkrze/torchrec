@@ -26,6 +26,7 @@ from torchrec.distributed.types import ShardingEnv, ShardingType
 
 class CreateInferEmbeddingShardingTest(unittest.TestCase):
     def test_device_sharding_types(self) -> None:
+        """Dispatch only: checks the class picked per device, not XPU behavior."""
         cases = [
             (ShardingType.TABLE_WISE.value, InferTwSequenceEmbeddingSharding),
             (ShardingType.ROW_WISE.value, InferRwSequenceEmbeddingSharding),
