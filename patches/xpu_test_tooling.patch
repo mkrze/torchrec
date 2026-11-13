@@ -1,0 +1,38 @@
+Temporary XPU test tooling for test/pr3-xpu-tests (manuelhsantana/torchrec#3 + our XPU tests). NOT part of the RFC.
+
+A setup.py option to build against fbgemm-gpu-cpu (TORCHREC_USE_FBGEMM_CPU=1) for XPU
+hosts. The XPU tests of the change are in the branch itself
+(torchrec/distributed/tests/test_quant_sequence_xpu.py, test_fused_embedding_xpu.py). The
+DLRM-v3 XPU test framework applies this patch before its TorchRec rows.
+
+Apply after checking out this branch (working tree only, nothing is committed):
+
+    git apply patches/xpu_test_tooling.patch
+
+Remove it again with `git apply -R patches/xpu_test_tooling.patch`.
+Update after changing the branch: apply the patch, adjust the code, then
+replace everything below this header with `git diff HEAD -- setup.py torchrec`
+(plus new files) and remove the patch from the working tree. Before the RFC,
+drop the commit that adds this file.
+
+diff --git a/setup.py b/setup.py
+index 7708075f..a9f3b482 100644
+--- a/setup.py
++++ b/setup.py
+@@ -63,6 +63,16 @@ def main(argv: List[str]) -> None:
+         reqs = f.read()
+         install_requires = reqs.strip().split("\n")
+ 
++    # Temporary (XPU test framework): build against fbgemm-gpu-cpu on XPU hosts.
++    fbgemm_cpu = os.environ.get("TORCHREC_USE_FBGEMM_CPU", "0")
++    if fbgemm_cpu not in ("0", "1"):
++        raise ValueError("TORCHREC_USE_FBGEMM_CPU must be 0 or 1")
++    if fbgemm_cpu == "1":
++        install_requires = [
++            "fbgemm-gpu-cpu" if requirement == "fbgemm-gpu" else requirement
++            for requirement in install_requires
++        ]
++
+     version, sha = _get_version()
+     _export_version(version, sha)
+ 
